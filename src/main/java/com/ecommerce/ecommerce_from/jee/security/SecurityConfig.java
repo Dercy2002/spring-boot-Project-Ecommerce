@@ -10,7 +10,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -31,40 +30,37 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
     }
-@Bean
-public DefaultSecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    http
-        .csrf(csrf -> csrf.disable())
-        .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
-        .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers(
-                "/api/auth/**",
-                "/api/products/**",
-                "/swagger-ui/**",
-                "/v3/api-docs/**",
-                "/swagger-ui.html",
-                "/",
-                "/index.html",
-                "/css/**",
-                "/js/**",
-                "/images/**",
-                "/static/**",        // Autorise les fichiers dans /static
-                "/webjars/**",       // Bibliothèques web comme Bootstrap/JS
-                "/templates/**",     // autorise le contenu statique sous templates (rare mais utile si utilisé en frontend)
-                "/**/*.html",        // toutes les pages html
-                "/**/*.css",
-                "/**/*.js",
-                "/**/*.png",
-                "/**/*.jpg",
-                "/**/*.jpeg",
-                "/**/*.gif"
-            ).permitAll()
-            .anyRequest().authenticated()
-        );
 
-    http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+    @Bean
+    public DefaultSecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
+            .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    "/api/auth/**",
+                    "/api/products/**",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
+                    "/swagger-ui.html",
+                    "/",
+                    "/index.html",
+                    "/login.html",
+                    "/register.html",
+                    "/css/**",
+                    "/js/**",
+                    "/images/**",
+                    "/webjars/**",
+                    "/templates/**",
+                    "/static/**"
+                ).permitAll()
+                .anyRequest().authenticated()
+            );
 
-    return http.build();
-}
+        // Active le filtre JWT si besoin :
+        // http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
 }
