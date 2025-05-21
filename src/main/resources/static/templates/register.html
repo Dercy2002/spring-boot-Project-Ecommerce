@@ -22,13 +22,9 @@
                     <label for="password" class="form-label">Password *</label>
                     <input type="password" class="form-control" id="password" required>
                 </div>
-                <div class="mb-3">
-                    <label for="role" class="form-label">Role *</label>
-                    <select class="form-select" id="role" required>
-                        <option value="USER" selected>User</option>
-                        <option value="ADMIN">Admin</option>
-                    </select>
-                </div>
+
+                <!-- Le champ rôle est supprimé pour les utilisateurs simples -->
+
                 <button type="submit" class="btn btn-primary w-100">Register</button>
             </form>
             <div id="responseMessage" class="mt-3 text-center"></div>
@@ -46,7 +42,7 @@
                 username: document.getElementById('username').value,
                 email: document.getElementById('email').value,
                 password: document.getElementById('password').value,
-                role: document.getElementById('role').value
+                // Le rôle n'est plus envoyé dans la requête
             };
 
             try {

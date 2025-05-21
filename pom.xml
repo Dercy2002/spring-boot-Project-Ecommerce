@@ -22,11 +22,42 @@
         <java.version>17</java.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Enforce Logback and SLF4J versions -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>1.4.11</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-core</artifactId>
+                <version>1.4.11</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.9</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-to-slf4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -102,30 +133,38 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
 
-        <!-- ngrok pour expose ton API -->
+<dependency>
+    <groupId>net.coobird</groupId>
+    <artifactId>thumbnailator</artifactId>
+    <version>0.4.8</version>
+</dependency>
+        <!-- ngrok for exposing API -->
         <dependency>
             <groupId>tk.ngrok4j</groupId>
             <artifactId>ngrok4j-core</artifactId>
             <version>1.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.geronimo.specs</groupId>
+            <artifactId>geronimo-servlet_2.5_spec</artifactId>
+            <version>1.2</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>ua.pp.fland.web</groupId>
-            <artifactId>beans</artifactId>
-            <version>0.9.1pa</version>
-            <type>jar</type>
-        </dependency>
-        <dependency>
-            <groupId>top.javap.hermes</groupId>
-            <artifactId>hermes-example-api</artifactId>
-            <version>0.3</version>
-            <type>jar</type>
-        </dependency>
-        <dependency>
-            <groupId>run.smt.ktest</groupId>
-            <artifactId>sample</artifactId>
-            <version>1.0.0</version>
+            <groupId>us.careydevelopment.ecosystem</groupId>
+            <artifactId>jwt-security</artifactId>
+            <version>2.4.0</version>
             <type>jar</type>
         </dependency>
     </dependencies>

@@ -2,8 +2,9 @@ package com.ecommerce.ecommerce_from.jee.controller;
 
 import com.ecommerce.ecommerce_from.jee.entity.User;
 import com.ecommerce.ecommerce_from.jee.dto.AuthRequest;
-import com.ecommerce.ecommerce_from.jee.payload.AuthResponse;
 import com.ecommerce.ecommerce_from.jee.dto.RegisterRequest;
+import com.ecommerce.ecommerce_from.jee.enums.Role;
+import com.ecommerce.ecommerce_from.jee.payload.AuthResponse;
 import com.ecommerce.ecommerce_from.jee.repository.UserRepository;
 import com.ecommerce.ecommerce_from.jee.security.JwtTokenProvider;
 import com.ecommerce.ecommerce_from.jee.security.UserDetailsImpl;
@@ -15,9 +16,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-import com.ecommerce.ecommerce_from.jee.enums.Role;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -43,7 +45,16 @@ public class AuthController {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        return ResponseEntity.ok(new AuthResponse(token, userDetails.getUsername(), userDetails.getEmail()));
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(role -> role.getAuthority())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(new AuthResponse(
+                token,
+                userDetails.getUsername(),
+                userDetails.getEmail(),
+                roles
+        ));
     }
 
     @PostMapping("/register")
@@ -61,7 +72,6 @@ public class AuthController {
         user.setEmail(registerRequest.getEmail());
         user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
 
-        // Correction ici : conversion correcte vers enum
         Role role = Role.USER; // par défaut
         if (registerRequest.getRole() != null) {
             try {

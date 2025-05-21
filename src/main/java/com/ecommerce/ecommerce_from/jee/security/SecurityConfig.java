@@ -10,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -31,6 +32,7 @@ public class SecurityConfig {
         return authConfig.getAuthenticationManager();
     }
 
+
     @Bean
     public DefaultSecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,26 +42,36 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/**",
+                        "/images/**",
                     "/api/products/**",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/swagger-ui.html",
                     "/",
+                    "/api/products/**",
+                    "/uploads/**",
+                    "/api/users/**",
+                    "/api/products/**",
+                    "/uploads/**",
+                    "/api/users/**",
                     "/index.html",
                     "/login.html",
+                    "/user.html",
                     "/register.html",
+                    "/admin.html",
                     "/css/**",
                     "/js/**",
                     "/images/**",
                     "/webjars/**",
                     "/templates/**",
                     "/static/**"
+                    
                 ).permitAll()
                 .anyRequest().authenticated()
             );
 
         // Active le filtre JWT si besoin :
-        // http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+      http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

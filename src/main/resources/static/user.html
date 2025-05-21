@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tableau de Bord Utilisateur - E-commerce</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      padding-top: 56px;
+      background-color: #f8f9fa;
+    }
+    .product-card {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .product-card:hover {
+      transform: translateY(-5px);
+    }
+    .product-image {
+      height: 200px;
+      width: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .cart-table {
+      margin-top: 20px;
+    }
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .image-container {
+      position: relative;
+      height: 200px;
+      background-color: #f0f0f0; /* Placeholder background */
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="#">E-Commerce</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbarNav" aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link active" href="#">Accueil</a></li>
+        <li class="nav-item"><a class="nav-link" href="#products">Produits</a></li>
+        <li class="nav-item"><a class="nav-link" href="#cart">Panier</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="logout()">Déconnexion</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<section id="products" class="container mt-5">
+  <h2 class="text-center mb-4">Produits Disponibles</h2>
+  <div id="product-list" class="row"></div>
+</section>
+
+<section id="cart" class="container mt-5">
+  <h2 class="text-center mb-4">Votre Panier</h2>
+  <table class="table cart-table">
+    <thead>
+      <tr>
+        <th>Produit</th>
+        <th>Prix</th>
+        <th>Quantité</th>
+        <th>Total</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="cart-items"></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" class="text-end"><strong>Total:</strong></td>
+        <td id="cart-total">0 FBu</td>
+        <td><button class="btn btn-primary" onclick="placeOrder()">Passer la commande</button></td>
+      </tr>
+    </tfoot>
+  </table>
+</section>
+
+<div class="loading-spinner" id="loadingSpinner">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Chargement...</span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location.href = "/login.html";
+  }
+
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show ? "block" : "none";
+    document.getElementById("products").style.display = show ? "none" : "block";
+    document.getElementById("cart").style.display = show ? "none" : "block";
+  }
+
+  async function loadProducts() {
+    showLoading(true);
+    const container = document.getElementById('product-list');
+    container.innerHTML = ''; // Clear previous content
+
+    try {
+      const response = await fetch('/api/products', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Session expirée. Veuillez vous reconnecter.");
+        }
+        throw new Error(`Erreur HTTP ${response.status}`);
+      }
+      const products = await response.json();
+      console.log('Products fetched:', products);
+
+      if (products.length === 0) {
+        container.innerHTML = '<p class="text-center">Aucun produit disponible.</p>';
+        showLoading(false);
+        return;
+      }
+
+      // Create document fragment for efficient DOM updates
+      const fragment = document.createDocumentFragment();
+      products.forEach(product => {
+        const imageUrl = product.imageUrl && product.imageUrl !== 'null' 
+          ? product.imageUrl 
+          : '/images/placeholder.jpg';
+        console.log(`Product: ${product.name}, Image URL: ${imageUrl}`);
+        const card = document.createElement('div');
+        card.className = 'col-md-4';
+        card.innerHTML = `
+          <div class="product-card">
+            <div class="image-container">
+              <img src="${imageUrl}" alt="${product.name}" class="product-image img-fluid mb-2" 
+                   width="300" height="200" loading="lazy" 
+                   onerror="this.src='/images/placeholder.jpg'">
+            </div>
+            <h5>${product.name}</h5>
+            <p>${product.description.substring(0, 100)}${product.description.length > 100 ? '...' : ''}</p>
+            <strong>${product.price} FBu</strong>
+            <div class="mt-2">
+              <input type="number" min="1" max="${product.quantity}" value="1" 
+                     id="qty-${product.id}" class="form-control d-inline-block w-25">
+              <button class="btn btn-success btn-sm" 
+                      onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${product.quantity})">
+                Ajouter au panier
+              </button>
+            </div>
+          </div>`;
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits :', error);
+      container.innerHTML = `<p class="text-center text-danger">Erreur: ${error.message}</p>`;
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function addToCart(id, name, price, maxQuantity) {
+    const quantityInput = document.getElementById(`qty-${id}`);
+    const quantity = parseInt(quantityInput.value);
+    if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
+      alert(`Veuillez entrer une quantité valide (1 à ${maxQuantity}).`);
+      quantityInput.value = 1; // Reset to default
+      return;
+    }
+
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+    const existingItem = cart.find(item => item.id === id);
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      if (existingItem.quantity > maxQuantity) {
+        alert(`La quantité totale dépasse le stock disponible (${maxQuantity}).`);
+        existingItem.quantity -= quantity;
+        return;
+      }
+    } else {
+      cart.push({ id, name, price, quantity });
+    }
+
+    localStorage.setItem('cart', JSON.stringify(cart));
+    alert(`${name} ajouté au panier !`);
+    updateCartDisplay();
+  }
+
+  function updateCartDisplay() {
+    const cart = JSON.parse(localStorage.getItem('cart')) || [];
+    const tbody = document.getElementById('cart-items');
+    tbody.innerHTML = '';
+
+    let total = 0;
+    cart.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      total += itemTotal;
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${item.name}</td>
+        <td>${item.price} FBu</td>
+        <td>${item.quantity}</td>
+        <td>${itemTotal.toFixed(2)} FBu</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeFromCart(${item.id})">Supprimer</button></td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    document.getElementById('cart-total').textContent = `${total.toFixed(2)} FBu`;
+  }
+
+  function removeFromCart(id) {
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+    cart = cart.filter(item => item.id !== id);
+    localStorage.setItem('cart', JSON.stringify(cart));
+    updateCartDisplay();
+  }
+
+  async function placeOrder() {
+    const cart = JSON.parse(localStorage.getItem('cart')) || [];
+    if (cart.length === 0) {
+      alert("Votre panier est vide.");
+      return;
+    }
+
+    const order = {
+      userId: getUserIdFromToken(),
+      items: cart.map(item => ({
+        productId: item.id,
+        quantity: item.quantity
+      })),
+      total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    };
+
+    showLoading(true);
+    try {
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(order)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+      }
+      alert("Commande passée avec succès !");
+      localStorage.removeItem('cart');
+      updateCartDisplay();
+    } catch (error) {
+      console.error('Erreur lors de la commande :', error);
+      alert(`Erreur lors de la commande : ${error.message}`);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function getUserIdFromToken() {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub; // Adjust based on your JWT structure
+    } catch (e) {
+      console.error('Erreur lors du décodage du token:', e);
+      return null;
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('cart');
+    window.location.href = '/login.html';
+  }
+
+  window.onload = () => {
+    loadProducts();
+    updateCartDisplay();
+  };
+</script>
+</body>
+</html>

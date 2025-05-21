@@ -8,6 +8,7 @@
   <style>
     body {
       padding-top: 56px;
+      background-color: #f8f9fa;
     }
     .product-card {
       border: 1px solid #ddd;
@@ -21,11 +22,30 @@
     .product-card:hover {
       transform: translateY(-5px);
     }
+    .product-image {
+      height: 200px;
+      width: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .image-container {
+      position: relative;
+      height: 200px;
+      background-color: #f0f0f0; /* Placeholder background */
+    }
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .error-message {
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
+<!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
   <div class="container">
     <a class="navbar-brand" href="#">E-Commerce</a>
@@ -47,13 +67,13 @@
   </div>
 </nav>
 
-<!-- SECTION PRODUITS -->
+<!-- Products Section -->
 <section id="products" class="container mt-5">
   <h2 class="text-center mb-4">Produits Disponibles</h2>
   <div id="product-list" class="row"></div>
 </section>
 
-<!-- SECTION À PROPOS -->
+<!-- About Section -->
 <section id="about" class="bg-light py-5">
   <div class="container">
     <h2 class="text-center mb-4">À propos</h2>
@@ -61,7 +81,7 @@
   </div>
 </section>
 
-<!-- SECTION CONTACT -->
+<!-- Contact Section -->
 <section id="contact" class="py-5">
   <div class="container">
     <h2 class="text-center mb-4">Contact</h2>
@@ -69,39 +89,110 @@
   </div>
 </section>
 
-<!-- FOOTER -->
+<!-- Footer -->
 <footer class="bg-dark text-white text-center py-3">
-  <p>&copy; 2025 E-Commerce. Tous droits réservés.</p>
+  <p>© 2025 E-Commerce. Tous droits réservés.</p>
 </footer>
+
+<div class="loading-spinner" id="loadingSpinner">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Chargement...</span>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  async function loadProducts() {
-    try {
-      const response = await fetch('/api/products');
-      const products = await response.json();
-      const container = document.getElementById('product-list');
-      container.innerHTML = '';
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show ? "block" : "none";
+    document.getElementById("products").style.display = show ? "none" : "block";
+  }
 
+  async function loadProducts(usePagination = true, page = 0, size = 10) {
+    showLoading(true);
+    const container = document.getElementById('product-list');
+    container.innerHTML = ''; // Clear previous content
+
+    try {
+      // Try paginated endpoint first
+      let url = usePagination ? `/api/products?page=${page}&size=${size}` : '/api/products';
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Aucun détail disponible');
+        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      // Handle both paginated (Page) and non-paginated (List) responses
+      const products = Array.isArray(data) ? data : data.content || [];
+      console.log('Products fetched:', products);
+
+      if (products.length === 0) {
+        container.innerHTML = '<p class="text-center">Aucun produit disponible.</p>';
+        showLoading(false);
+        return;
+      }
+
+      // Create document fragment for efficient DOM updates
+      const fragment = document.createDocumentFragment();
       products.forEach(product => {
+        const imageUrl = product.imageUrl && product.imageUrl !== 'null' 
+          ? product.imageUrl 
+          : '/images/placeholder.jpg';
+        console.log(`Product: ${product.name}, Image URL: ${imageUrl}`);
         const card = document.createElement('div');
         card.className = 'col-md-4';
         card.innerHTML = `
           <div class="product-card">
-            <img src="${product.image_url}" alt="${product.name}" class="img-fluid mb-2" style="height:200px; object-fit:cover;">
+            <div class="image-container">
+              <img src="${imageUrl}" alt="${product.name}" class="product-image img-fluid mb-2" 
+                   width="300" height="200" loading="lazy" 
+                   onerror="this.src='/images/placeholder.jpg'; console.error('Image failed to load: ${imageUrl}')">
+            </div>
             <h5>${product.name}</h5>
-            <p>${product.description}</p>
+            <p>${product.description ? product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') : 'Sans description'}</p>
             <strong>${product.price} FBu</strong>
           </div>`;
-        container.appendChild(card);
+        fragment.appendChild(card);
       });
 
+      container.appendChild(fragment);
+
+      // Add pagination controls if paginated response
+      if (!Array.isArray(data) && data.totalPages > 1) {
+        const pagination = document.createElement('nav');
+        pagination.innerHTML = `
+          <ul class="pagination justify-content-center mt-3">
+            <li class="page-item ${page === 0 ? 'disabled' : ''}">
+              <a class="page-link" href="#" onclick="loadProducts(true, ${page - 1}, ${size})">Précédent</a>
+            </li>
+            <li class="page-item ${page >= data.totalPages - 1 ? 'disabled' : ''}">
+              <a class="page-link" href="#" onclick="loadProducts(true, ${page + 1}, ${size})">Suivant</a>
+            </li>
+          </ul>`;
+        container.appendChild(pagination);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des produits :', error);
+      // Fallback to non-paginated endpoint if pagination fails
+      if (usePagination && error.message.includes('Erreur HTTP')) {
+        console.log('Retrying without pagination...');
+        return loadProducts(false);
+      }
+      container.innerHTML = `<p class="text-center text-danger error-message">Erreur lors du chargement des produits : ${error.message}</p>`;
+    } finally {
+      showLoading(false);
     }
   }
 
-  loadProducts();
+  // Prevent duplicate calls
+  let isLoading = false;
+  window.onload = () => {
+    if (!isLoading) {
+      isLoading = true;
+      loadProducts().finally(() => isLoading = false);
+    }
+  };
 </script>
 </body>
 </html>
