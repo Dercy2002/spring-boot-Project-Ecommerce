@@ -1,5 +1,6 @@
 package com.ecommerce.ecommerce_from.jee.controller;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -42,6 +43,16 @@ public class GlobalExceptionHandler {
         errorResponse.put("error", "Erreur de contrainte de base de données");
         errorResponse.put("message", "Impossible d'enregistrer les données : " + ex.getMostSpecificCause().getMessage());
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(JsonMappingException.class)
+    public ResponseEntity<Map<String, String>> handleJsonMappingException(JsonMappingException ex) {
+        logger.error("JSON serialization error: {}", ex.getMessage(), ex);
+        Map<String, String> errorResponse = new HashMap<>();
+        errorResponse.put("error", "Erreur de sérialisation");
+        errorResponse.put("message", ex.getMessage().contains("does not exist") ?
+                "Référence à une entité inexistante (ex: Produit manquant)" : ex.getMessage());
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)

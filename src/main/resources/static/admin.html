@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard - E-commerce</title>
+    <title>Admin Dashboard - OBAMA SHOP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f8f9fa; }
@@ -48,11 +48,36 @@
         window.location.href = "/login.html";
     }
 
-    document.getElementById("adminName").innerText = "Connecté en tant qu'ADMIN";
+    async function loadAdminName() {
+        try {
+            const response = await fetch("/api/users/me", {
+                headers: { "Authorization": "Bearer " + token }
+            });
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error("Session expirée. Veuillez vous reconnecter.");
+                }
+                throw new Error(`Erreur HTTP ${response.status}`);
+            }
+            const user = await response.json();
+            document.getElementById("adminName").innerText = `Connecté en tant que ${user.username}`;
+        } catch (error) {
+            console.error("Erreur lors du chargement du nom de l'admin :", error);
+            document.getElementById("adminName").innerText = "Erreur de connexion";
+            window.location.href = "/login.html";
+        }
+    }
+
+    loadAdminName();
 
     function showLoading(show) {
         document.getElementById("loadingSpinner").style.display = show ? "block" : "none";
         document.getElementById("mainContent").style.display = show ? "none" : "block";
+    }
+
+    function showError(message) {
+        const content = document.getElementById("mainContent");
+        content.innerHTML = `<div class="alert alert-danger">${message}</div>`;
     }
 
     async function loadProducts() {
@@ -93,7 +118,7 @@
                         <div class="card-body">
                             <h5 class="card-title">${product.name}</h5>
                             <p class="card-text">${product.description}</p>
-                            <p class="text-success fw-bold">${product.price} €</p>
+                            <p class="text-success fw-bold">${product.price} FBu</p>
                             <p>Quantité: ${product.quantity}</p>
                             <button class="btn btn-primary btn-sm me-2" onclick='showEditProductForm(${JSON.stringify(product)})'>Modifier</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteProduct(${product.id})">Supprimer</button>
@@ -123,7 +148,7 @@
                     <textarea id="productDescription" name="description" class="form-control" placeholder="Description" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Prix (€)</label>
+                    <label class="form-label">Prix (FBu)</label>
                     <input type="number" id="productPrice" name="price" class="form-control" placeholder="Prix" step="0.01" min="0.01" required>
                 </div>
                 <div class="mb-3">
@@ -223,7 +248,7 @@
                     <textarea id="productDescription" name="description" class="form-control" required>${product.description}</textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Prix (€)</label>
+                    <label class="form-label">Prix (FBu)</label>
                     <input type="number" id="productPrice" name="price" class="form-control" value="${product.price}" step="0.01" min="0.01" required>
                 </div>
                 <div class="mb-3">
@@ -330,7 +355,12 @@
     async function loadUsers() {
         showLoading(true);
         const content = document.getElementById("mainContent");
-        content.innerHTML = `<h4>Liste des Utilisateurs</h4><div id="userList" class="list-group mt-3"></div>`;
+        content.innerHTML = `
+            <h4>Liste des Utilisateurs</h4>
+            <button class="btn btn-success mb-3" onclick="showAddUserForm()">+ Ajouter un utilisateur</button>
+            <div id="userList" class="list-group mt-3"></div>
+            <div id="addUserForm" class="mt-4"></div>
+        `;
 
         try {
             const response = await fetch("/api/users", {
@@ -353,9 +383,16 @@
 
             users.forEach(user => {
                 const item = document.createElement("div");
-                item.className = "list-group-item";
+                item.className = "list-group-item d-flex justify-content-between align-items-center";
                 item.innerHTML = `
-                    <strong>${user.name}</strong> - ${user.email} (${user.role})
+                    <div>
+                        <strong>${user.username}</strong> - ${user.email} (${user.role})
+                        <br><small>Activé: ${user.enabled ? 'Oui' : 'Non'}</small>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary btn-sm me-2" onclick='showEditUserForm(${JSON.stringify(user)})'>Modifier</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})">Supprimer</button>
+                    </div>
                 `;
                 list.appendChild(item);
             });
@@ -366,17 +403,388 @@
         }
     }
 
-    function loadOrders() {
+    function showAddUserForm() {
+        const formDiv = document.getElementById("addUserForm");
+        formDiv.innerHTML = `
+            <h5>Ajouter un nouvel utilisateur</h5>
+            <form id="userForm">
+                <div class="mb-3">
+                    <label class="form-label">Nom d'utilisateur</label>
+                    <input type="text" id="userUsername" name="username" class="form-control" placeholder="Nom d'utilisateur" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" id="userEmail" name="email" class="form-control" placeholder="Email" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe</label>
+                    <input type="password" id="userPassword" name="password" class="form-control" placeholder="Mot de passe" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Rôle</label>
+                    <select id="userRole" name="role" class="form-control" required>
+                        <option value="USER">Utilisateur</option>
+                        <option value="ADMIN">Administrateur</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Activé</label>
+                    <input type="checkbox" id="userEnabled" name="enabled" checked>
+                </div>
+                <button type="submit" class="btn btn-primary">Ajouter</button>
+            </form>
+        `;
+
+        document.getElementById("userForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            showLoading(true);
+
+            const username = document.getElementById("userUsername").value.trim();
+            const email = document.getElementById("userEmail").value.trim();
+            const password = document.getElementById("userPassword").value;
+            const role = document.getElementById("userRole").value;
+            const enabled = document.getElementById("userEnabled").checked;
+
+            console.log("Form inputs:", { username, email, password, role, enabled });
+
+            if (!username) {
+                alert("Le nom d'utilisateur est requis.");
+                showLoading(false);
+                return;
+            }
+            if (!email) {
+                alert("L'email est requis.");
+                showLoading(false);
+                return;
+            }
+            if (!password) {
+                alert("Le mot de passe est requis.");
+                showLoading(false);
+                return;
+            }
+            if (!role) {
+                alert("Le rôle est requis.");
+                showLoading(false);
+                return;
+            }
+
+            const userData = { username, email, password, role, enabled };
+
+            try {
+                const response = await fetch("/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(userData)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+                }
+                alert("Utilisateur ajouté avec succès !");
+                loadUsers();
+            } catch (error) {
+                console.error("Error during user creation:", error);
+                alert("Erreur lors de l'ajout : " + error.message);
+            } finally {
+                showLoading(false);
+            }
+        });
+    }
+
+    function showEditUserForm(user) {
+        const formDiv = document.getElementById("addUserForm");
+        formDiv.innerHTML = `
+            <h5>Modifier l'utilisateur</h5>
+            <form id="editUserForm">
+                <div class="mb-3">
+                    <label class="form-label">Nom d'utilisateur</label>
+                    <input type="text" id="userUsername" name="username" class="form-control" value="${user.username}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" id="userEmail" name="email" class="form-control" value="${user.email}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe (laisser vide pour conserver)</label>
+                    <input type="password" id="userPassword" name="password" class="form-control" placeholder="Nouveau mot de passe">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Rôle</label>
+                    <select id="userRole" name="role" class="form-control" required>
+                        <option value="USER" ${user.role === 'USER' ? 'selected' : ''}>Utilisateur</option>
+                        <option value="ADMIN" ${user.role === 'ADMIN' ? 'selected' : ''}>Administrateur</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Activé</label>
+                    <input type="checkbox" id="userEnabled" name="enabled" ${user.enabled ? 'checked' : ''}>
+                </div>
+                <button type="submit" class="btn btn-primary">Mettre à jour</button>
+            </form>
+        `;
+
+        document.getElementById("editUserForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            showLoading(true);
+
+            const username = document.getElementById("userUsername").value.trim();
+            const email = document.getElementById("userEmail").value.trim();
+            const password = document.getElementById("userPassword").value;
+            const role = document.getElementById("userRole").value;
+            const enabled = document.getElementById("userEnabled").checked;
+
+            console.log("Edit form inputs:", { username, email, password, role, enabled });
+
+            if (!username) {
+                alert("Le nom d'utilisateur est requis.");
+                showLoading(false);
+                return;
+            }
+            if (!email) {
+                alert("L'email est requis.");
+                showLoading(false);
+                return;
+            }
+            if (!role) {
+                alert("Le rôle est requis.");
+                showLoading(false);
+                return;
+            }
+
+            const userData = { username, email, password, role, enabled };
+
+            try {
+                const response = await fetch(`/api/users/${user.id}`, {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(userData)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+                }
+                alert("Utilisateur mis à jour avec succès !");
+                loadUsers();
+            } catch (error) {
+                console.error("Error during user update:", error);
+                alert("Erreur lors de la mise à jour : " + error.message);
+            } finally {
+                showLoading(false);
+            }
+        });
+    }
+
+    async function deleteUser(id) {
+        if (!confirm("Voulez-vous vraiment supprimer cet utilisateur ?")) return;
+        showLoading(true);
+        try {
+            const response = await fetch(`/api/users/${id}`, {
+                method: "DELETE",
+                headers: { "Authorization": "Bearer " + token }
+            });
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error("Session expirée. Veuillez vous reconnecter.");
+                }
+                throw new Error(`Erreur HTTP ${response.status}`);
+            }
+            alert("Utilisateur supprimé avec succès !");
+            loadUsers();
+        } catch (error) {
+            console.error("Error during user deletion:", error);
+            alert("Erreur lors de la suppression : " + error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    async function loadOrders() {
+        showLoading(true);
+        showError("");
         const content = document.getElementById("mainContent");
         content.innerHTML = `
-            <h4>Commandes</h4>
-            <p>Fonctionnalité à implémenter...</p>
+            <h4>Liste des Commandes</h4>
+            <div id="orderList" class="list-group mt-3"></div>
         `;
+
+        try {
+            console.log("Starting fetch to http://localhost:9090/api/orders");
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch("http://localhost:9090/api/orders", {
+                headers: { "Authorization": "Bearer " + token },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            console.log("Fetch completed. Status:", response.status, "OK:", response.ok);
+
+            const responseText = await response.text();
+            console.log("Raw response:", responseText);
+
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    console.log("Unauthorized or forbidden, redirecting to login");
+                    localStorage.removeItem("token");
+                    window.location.href = "/login.html";
+                    throw new Error("Session expirée ou accès refusé. Veuillez vous reconnecter.");
+                }
+                let errorMessage = `Erreur HTTP ${response.status}: ${responseText || "Erreur serveur inconnue"}`;
+                if (response.status === 500 && responseText.includes("Could not write JSON: Entity")) {
+                    errorMessage = "Erreur serveur : Produit ou utilisateur introuvable dans la base de données. Veuillez vérifier les produits.";
+                }
+                throw new Error(errorMessage);
+            }
+
+            let orders = [];
+            let errorMessage = "";
+            try {
+                const jsonMatch = responseText.match(/^\s*\[.*?\](?=\s*\{|$)/s);
+                if (jsonMatch) {
+                    orders = JSON.parse(jsonMatch[0]);
+                    const errorMatch = responseText.match(/\{.*"error".*\}/);
+                    if (errorMatch) {
+                        const errorObj = JSON.parse(errorMatch[0]);
+                        errorMessage = errorObj.message || "Erreur serveur inconnue";
+                    }
+                } else {
+                    orders = JSON.parse(responseText);
+                }
+            } catch (e) {
+                console.error("JSON parse error:", e);
+                const list = document.getElementById("orderList");
+                list.innerHTML = `<p>Erreur d'analyse de la réponse serveur. Réponse brute :</p><pre>${responseText}</pre>`;
+                throw new Error("Erreur lors de l'analyse JSON : " + e.message);
+            }
+            console.log("Parsed orders:", orders);
+
+            const list = document.getElementById("orderList");
+            if (!Array.isArray(orders)) {
+                list.innerHTML = "<p>Erreur : Réponse non valide (pas un tableau).</p>";
+                console.error("Response is not an array:", orders);
+                showLoading(false);
+                return;
+            }
+
+            if (orders.length === 0) {
+                list.innerHTML = "<p>Aucune commande trouvée.</p>";
+                console.log("No orders found");
+                showLoading(false);
+                return;
+            }
+
+            orders.forEach((order, index) => {
+                console.log(`Processing order ${index + 1}:`, order);
+                console.log(`Order items (raw):`, JSON.stringify(order.items, null, 2));
+                const orderId = order.id || `Inconnu_${index}`;
+                const username = order.user && order.user.username ? order.user.username : `Utilisateur inconnu (ID: ${order.user?.id || 'inconnu'})`;
+                const total = order.total != null ? order.total.toFixed(2) : "0.00";
+                const status = order.status || "Inconnu";
+                const createdAt = order.createdAt ? new Date(order.createdAt).toLocaleString('fr-FR') : "Date inconnue";
+                const items = Array.isArray(order.items) ? order.items : [];
+
+                const itemsHtml = items.length > 0
+                    ? "<strong>Articles :</strong><ul>" + items.map(item => {
+                        const productId = item.productId || item.id || item.product?.id || 'inconnu';
+                        const productName = item.productName || item.name || item.product?.name || `Produit ID=${productId}`;
+                        const quantity = item.quantity != null ? item.quantity : 0;
+                        const price = item.price != null ? item.price.toFixed(2) : "0.00";
+                        return `<li>${productName} (Quantité: ${quantity}, Prix unitaire: ${price} FBu)</li>`;
+                      }).join('') + "</ul>"
+                    : "<strong>Articles :</strong><p>Aucun article</p>";
+
+                const item = document.createElement("div");
+                item.className = "list-group-item d-flex justify-content-between align-items-center";
+                item.innerHTML = `
+                    <div>
+                        <strong>Commande #${orderId}</strong> - Utilisateur: ${username}<br>
+                        Total: ${total} FBu<br>
+                        Statut: ${status}<br>
+                        Créée le: ${createdAt}<br>
+                        ${itemsHtml}
+                    </div>
+                    <div>
+                        <select class="form-select form-select-sm" onchange="updateOrderStatus('${orderId}', this.value)">
+                            <option value="PENDING" ${status === 'PENDING' ? 'selected' : ''}>En attente</option>
+                            <option value="SHIPPED" ${status === 'SHIPPED' ? 'selected' : ''}>Expédiée</option>
+                            <option value="DELIVERED" ${status === 'DELIVERED' ? 'selected' : ''}>Livrée</option>
+                            <option value="CANCELLED" ${status === 'CANCELLED' ? 'selected' : ''}>Annulée</option>
+                        </select>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            if (errorMessage) {
+                list.innerHTML += `
+                    <div class="alert alert-warning mt-3">
+                        <strong>Attention :</strong> Certaines données n'ont pas pu être chargées en raison d'une erreur serveur : ${errorMessage}
+                        <p>Veuillez vérifier la base de données.</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error("Erreur dans loadOrders:", error);
+            const list = document.getElementById("orderList");
+            list.innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>Erreur lors du chargement des commandes :</strong> ${error.message}
+                    <p>Contactez l'administrateur pour vérifier la configuration de la base de données.</p>
+                </div>
+            `;
+            showError(`Erreur lors du chargement des commandes : ${error.message}`);
+        } finally {
+            console.log("Stopping loading spinner");
+            showLoading(false);
+        }
     }
+
+    async function updateOrderStatus(orderId, status) {
+    showLoading(true);
+    try {
+        console.log(`Sending PUT /api/orders/${orderId}/status?status=${status}`);
+        console.log(`Current token: ${token.substring(0, 20)}... (length: ${token.length})`);
+        const response = await fetch(`/api/orders/${orderId}/status?status=${status}`, {
+            method: "PUT",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            }
+        });
+        const responseText = await response.text();
+        console.log(`PUT /api/orders/${orderId}/status response: Status=${response.status}, Headers:`, response.headers, `Body=`, responseText);
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem("token");
+                window.location.href = "/login.html";
+                throw new Error("Session expirée. Veuillez vous reconnecter.");
+            }
+            if (response.status === 403) {
+                throw new Error("Accès refusé : Vous devez être administrateur pour modifier le statut. Vérifiez que vous êtes connecté en tant qu'administrateur (par exemple, 'keke').");
+            }
+            throw new Error(`Erreur HTTP ${response.status}: ${responseText || "Erreur serveur inconnue"}`);
+        }
+        alert("Statut de la commande mis à jour avec succès !");
+        await loadOrders();
+    } catch (error) {
+        console.error("Erreur lors de la mise à jour du statut:", error);
+        alert(`Erreur lors de la mise à jour : ${error.message}`);
+        await loadOrders();
+    } finally {
+        showLoading(false);
+    }
+}
 
     function logout() {
         localStorage.removeItem("token");
-        window.location.href = "/login.html";
+        window.location.href = "/index.html";
     }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

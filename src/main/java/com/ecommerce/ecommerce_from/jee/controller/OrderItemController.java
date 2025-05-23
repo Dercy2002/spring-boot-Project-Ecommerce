@@ -6,12 +6,10 @@ import com.ecommerce.ecommerce_from.jee.entity.Product;
 import com.ecommerce.ecommerce_from.jee.repository.OrderRepository;
 import com.ecommerce.ecommerce_from.jee.repository.ProductRepository;
 import com.ecommerce.ecommerce_from.jee.service.OrderItemService;
-
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/order-items")
@@ -38,7 +36,7 @@ public class OrderItemController {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        OrderItem newItem = orderItemService.addOrderItem(order, product, quantity);
+        OrderItem newItem = (OrderItem) orderItemService.addOrderItem(order, product, quantity);
 
         return ResponseEntity.ok(newItem);
     }

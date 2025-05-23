@@ -1,22 +1,33 @@
 package com.ecommerce.ecommerce_from.jee.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.*;
 
 @Entity
+@Table(name = "product")
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Product {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false)
     private String name;
+
+    @Column
     private String description;
+
+    @Column(nullable = false)
     private Double price;
+
+    @Column(nullable = false)
     private Integer quantity;
+
+    @Column(name = "image_url")
     private String imageUrl;
 
-    // Getters and setters
+    // Getters et setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }

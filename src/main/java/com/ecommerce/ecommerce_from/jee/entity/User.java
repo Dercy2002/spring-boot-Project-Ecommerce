@@ -1,11 +1,10 @@
 // --- User.java (corrigé avec enum Role) ---
 package com.ecommerce.ecommerce_from.jee.entity;
 
+import com.ecommerce.ecommerce_from.jee.enums.Role;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
-import com.ecommerce.ecommerce_from.jee.enums.Role; // ✅ Correct
+import lombok.*; 
 
 
 @Entity

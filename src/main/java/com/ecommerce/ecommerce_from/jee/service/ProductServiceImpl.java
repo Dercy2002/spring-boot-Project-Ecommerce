@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,177 +31,172 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Product createProduct(ProductRequest request) {
-        logger.info("Creating product with name: {}", request.getName());
+        logger.info("Création produit: nom='{}', description='{}', prix={}, quantité={}, image={}",
+                request.getName(), request.getDescription(), request.getPrice(), request.getQuantity(),
+                request.getImage() != null ? request.getImage().getOriginalFilename() : "aucune");
 
-        // Validate request
         if (request.getName() == null || request.getName().trim().isEmpty()) {
-            logger.error("Product name cannot be null or empty");
-            throw new IllegalArgumentException("Product name cannot be null or empty");
-        }
-        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
-            logger.error("Product description cannot be null or empty");
-            throw new IllegalArgumentException("Product description cannot be null or empty");
+            logger.error("Nom produit vide/null: '{}'", request.getName());
+            throw new IllegalArgumentException("Le nom du produit ne peut pas être vide ou null");
         }
         if (request.getPrice() == null || request.getPrice() <= 0) {
-            logger.error("Product price must be positive: {}", request.getPrice());
-            throw new IllegalArgumentException("Product price must be positive");
+            logger.error("Prix invalide: {}", request.getPrice());
+            throw new IllegalArgumentException("Le prix doit être supérieur à 0");
         }
         if (request.getQuantity() == null || request.getQuantity() < 0) {
-            logger.error("Product quantity cannot be negative: {}", request.getQuantity());
-            throw new IllegalArgumentException("Product quantity cannot be negative");
+            logger.error("Quantité invalide: {}", request.getQuantity());
+            throw new IllegalArgumentException("La quantité ne peut pas être négative");
         }
 
-        // Create product
         Product product = new Product();
         product.setName(request.getName().trim());
-        product.setDescription(request.getDescription().trim());
+        product.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
         product.setPrice(request.getPrice());
         product.setQuantity(request.getQuantity());
 
-        // Handle image
         if (request.getImage() != null && !request.getImage().isEmpty()) {
             try {
                 String imageUrl = saveImage(request.getImage());
                 product.setImageUrl(imageUrl);
-                logger.info("Image URL set for product: {}", imageUrl);
-            } catch (Exception e) {
-                logger.error("Failed to process image for product '{}': {}", request.getName(), e.getMessage(), e);
-                product.setImageUrl(null); // Continue without image
+                logger.info("Image URL: {}", imageUrl);
+            } catch (IOException e) {
+                logger.error("Échec traitement image: {}", e.getMessage());
+                product.setImageUrl(null);
             }
         } else {
-            logger.info("No image provided for product: {}", request.getName());
+            logger.info("Aucune image fournie");
             product.setImageUrl(null);
         }
 
-        // Save product
         Product savedProduct = productRepository.save(product);
-        logger.info("Product saved with ID: {}", savedProduct.getId());
+        logger.info("Produit enregistré: ID={}, nom={}, image_url={}", savedProduct.getId(), savedProduct.getName(), savedProduct.getImageUrl());
         return savedProduct;
     }
 
     @Override
     public Product updateProduct(Long id, ProductRequest request) {
-        logger.info("Updating product with id: {}", id);
+        logger.info("Mise à jour produit ID={}: nom='{}', prix={}, quantité={}, image={}",
+                id, request.getName(), request.getPrice(), request.getQuantity(),
+                request.getImage() != null ? request.getImage().getOriginalFilename() : "aucune");
 
-        // Validate request
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            logger.error("Product name cannot be null or empty");
-            throw new IllegalArgumentException("Product name cannot be null or empty");
+        if (id == null) {
+            logger.error("ID produit null");
+            throw new IllegalArgumentException("L'ID du produit ne peut pas être null");
         }
-        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
-            logger.error("Product description cannot be null or empty");
-            throw new IllegalArgumentException("Product description cannot be null or empty");
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            logger.error("Nom produit vide/null: '{}'", request.getName());
+            throw new IllegalArgumentException("Le nom du produit ne peut pas être vide ou null");
         }
         if (request.getPrice() == null || request.getPrice() <= 0) {
-            logger.error("Product price must be positive: {}", request.getPrice());
-            throw new IllegalArgumentException("Product price must be positive");
+            logger.error("Prix invalide: {}", request.getPrice());
+            throw new IllegalArgumentException("Le prix doit être supérieur à 0");
         }
         if (request.getQuantity() == null || request.getQuantity() < 0) {
-            logger.error("Product quantity cannot be negative: {}", request.getQuantity());
-            throw new IllegalArgumentException("Product quantity cannot be negative");
+            logger.error("Quantité invalide: {}", request.getQuantity());
+            throw new IllegalArgumentException("La quantité ne peut pas être négative");
         }
 
-        // Find existing product
         Optional<Product> optionalProduct = productRepository.findById(id);
-        if (optionalProduct.isEmpty()) {
-            logger.error("Product not found with id: {}", id);
-            throw new IllegalArgumentException("Product not found with id: " + id);
+        if (!optionalProduct.isPresent()) {
+            logger.error("Produit ID={} non trouvé", id);
+            throw new IllegalArgumentException("Produit avec ID " + id + " non trouvé");
         }
 
-        // Update product
         Product product = optionalProduct.get();
         product.setName(request.getName().trim());
-        product.setDescription(request.getDescription().trim());
+        product.setDescription(request.getDescription() != null ? request.getDescription().trim() : "");
         product.setPrice(request.getPrice());
         product.setQuantity(request.getQuantity());
 
-        // Handle image
         if (request.getImage() != null && !request.getImage().isEmpty()) {
             try {
                 String imageUrl = saveImage(request.getImage());
                 product.setImageUrl(imageUrl);
-                logger.info("Image URL updated for product: {}", imageUrl);
-            } catch (Exception e) {
-                logger.error("Failed to process image for product id {}: {}", id, e.getMessage(), e);
+                logger.info("Image mise à jour: {}", imageUrl);
+            } catch (IOException e) {
+                logger.error("Échec traitement image mise à jour: {}", e.getMessage());
+                product.setImageUrl(product.getImageUrl());
             }
         }
 
-        // Save updated product
-        Product savedProduct = productRepository.save(product);
-        logger.info("Product updated with ID: {}", savedProduct.getId());
-        return savedProduct;
+        Product updatedProduct = productRepository.save(product);
+        logger.info("Produit mis à jour: ID={}, nom={}, image_url={}", updatedProduct.getId(), updatedProduct.getName(), updatedProduct.getImageUrl());
+        return updatedProduct;
     }
 
     @Override
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            logger.error("Product not found with id: {}", id);
-            throw new IllegalArgumentException("Product not found with id: " + id);
+        logger.info("Suppression produit ID={}", id);
+
+        if (id == null) {
+            logger.error("ID produit null");
+            throw new IllegalArgumentException("L'ID du produit ne peut pas être null");
         }
+
+        Optional<Product> optionalProduct = productRepository.findById(id);
+        if (!optionalProduct.isPresent()) {
+            logger.error("Produit ID={} non trouvé", id);
+            throw new IllegalArgumentException("Produit avec ID " + id + " non trouvé");
+        }
+
         productRepository.deleteById(id);
-        logger.info("Product deleted with id: {}", id);
+        logger.info("Produit ID={} supprimé", id);
     }
 
     @Override
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        try {
+            List<Product> products = productRepository.findAll();
+            logger.info("Récupération {} produits", products.size());
+            products.forEach(p -> logger.debug("Produit: id={}, nom={}, image_url={}, description={}",
+                    p.getId(), p.getName(), p.getImageUrl(), p.getDescription()));
+            return products;
+        } catch (Exception e) {
+            logger.error("Erreur récupération produits: {}", e.getMessage(), e);
+            throw new RuntimeException("Échec de la récupération des produits", e);
+        }
     }
 
     @Override
     public Optional<Product> getProductById(Long id) {
-        return productRepository.findById(id);
+        logger.info("Récupération produit ID={}", id);
+
+        if (id == null) {
+            logger.error("ID produit null");
+            throw new IllegalArgumentException("L'ID du produit ne peut pas être null");
+        }
+
+        try {
+            Optional<Product> product = productRepository.findById(id);
+            if (product.isPresent()) {
+                logger.info("Produit trouvé: ID={}, nom={}, image_url={}", product.get().getId(), product.get().getName(), product.get().getImageUrl());
+            } else {
+                logger.info("Produit ID={} non trouvé", id);
+            }
+            return product;
+        } catch (Exception e) {
+            logger.error("Erreur récupération produit ID={}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Échec de la récupération du produit", e);
+        }
     }
 
-    private String saveImage(MultipartFile image) {
+    private String saveImage(MultipartFile image) throws IOException {
+        String fileName = UUID.randomUUID() + "_" + image.getOriginalFilename();
+        Path filePath = Paths.get(UPLOAD_DIR, fileName);
         try {
-            if (image == null || image.isEmpty()) {
-                logger.error("Uploaded image is null or empty");
-                throw new IllegalArgumentException("Le fichier image est vide ou non fourni");
+            Files.createDirectories(filePath.getParent());
+            if (!Files.isWritable(filePath.getParent())) {
+                logger.error("Répertoire non accessible en écriture: {}", filePath.getParent());
+                throw new IOException("Répertoire non accessible en écriture: " + filePath.getParent());
             }
-
-            String contentType = image.getContentType();
-            String originalFilename = image.getOriginalFilename();
-            logger.info("Processing image: filename={}, contentType={}, size={} bytes",
-                    originalFilename != null ? originalFilename : "unknown", contentType, image.getSize());
-
-            if (contentType == null ||
-                    !(contentType.equals("image/jpeg") || contentType.equals("image/png"))) {
-                logger.error("Invalid file type: {}. Only JPEG and PNG are allowed", contentType);
-                throw new IllegalArgumentException("Seules les images JPEG et PNG sont autorisées");
-            }
-
-            if (image.getSize() > 5 * 1024 * 1024) {
-                logger.error("File size exceeds limit: {} bytes", image.getSize());
-                throw new IllegalArgumentException("La taille du fichier dépasse la limite de 5 Mo");
-            }
-
-            Path uploadPath = Paths.get(UPLOAD_DIR);
-            logger.info("Checking upload directory: {}", uploadPath.toAbsolutePath());
-
-            if (!Files.exists(uploadPath)) {
-                logger.info("Creating upload directory: {}", uploadPath.toAbsolutePath());
-                Files.createDirectories(uploadPath);
-            }
-
-            if (!Files.isWritable(uploadPath)) {
-                logger.error("Upload directory is not writable: {}", uploadPath.toAbsolutePath());
-                throw new IOException("Le répertoire de destination n'est pas accessible en écriture: " + uploadPath.toAbsolutePath());
-            }
-
-            String fileName = UUID.randomUUID() + "_" + (originalFilename != null ? originalFilename : "image");
-            Path filePath = uploadPath.resolve(fileName);
-            logger.info("Saving image to: {}", filePath.toAbsolutePath());
-
-            try (InputStream inputStream = image.getInputStream()) {
-                Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-            }
-
+            Files.copy(image.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            logger.info("Image enregistrée: chemin={}", filePath);
             String imageUrl = IMAGE_BASE_URL + fileName;
-            logger.info("Image saved successfully: {}", imageUrl);
+            logger.info("Image URL générée: {}", imageUrl);
             return imageUrl;
         } catch (IOException e) {
-            logger.error("Failed to save image: {}", e.getMessage(), e);
-            throw new RuntimeException("Erreur lors de l'enregistrement de l'image: " + e.getMessage());
+            logger.error("Échec enregistrement image: chemin={}, erreur={}", filePath, e.getMessage());
+            throw e;
         }
     }
 }

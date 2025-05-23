@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Tableau de Bord Utilisateur - E-commerce</title>
+  <title>Tableau de Bord Utilisateur - OBAMA SHOP</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <style>
     body {
@@ -39,7 +39,14 @@
     .image-container {
       position: relative;
       height: 200px;
-      background-color: #f0f0f0; /* Placeholder background */
+      background-color: #f0f0f0;
+    }
+    .error-message {
+      color: red;
+      text-align: center;
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 1.2em;
     }
   </style>
 </head>
@@ -48,7 +55,7 @@
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
   <div class="container">
-    <a class="navbar-brand" href="#">E-Commerce</a>
+    <a class="navbar-brand" href="#">OBAMA SHOP</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
             data-bs-target="#navbarNav" aria-controls="navbarNav"
             aria-expanded="false" aria-label="Toggle navigation">
@@ -69,6 +76,7 @@
 <section id="products" class="container mt-5">
   <h2 class="text-center mb-4">Produits Disponibles</h2>
   <div id="product-list" class="row"></div>
+  <div id="error-message" class="error-message"></div>
 </section>
 
 <section id="cart" class="container mt-5">
@@ -92,6 +100,7 @@
       </tr>
     </tfoot>
   </table>
+  <div id="cart-error-message" class="error-message"></div>
 </section>
 
 <div class="loading-spinner" id="loadingSpinner">
@@ -108,42 +117,90 @@
   }
 
   function showLoading(show) {
-    document.getElementById("loadingSpinner").style.display = show ? "block" : "none";
-    document.getElementById("products").style.display = show ? "none" : "block";
-    document.getElementById("cart").style.display = show ? "none" : "block";
+    const spinner = document.getElementById("loadingSpinner");
+    const productsSection = document.getElementById("products");
+    const cartSection = document.getElementById("cart");
+    if (spinner && productsSection && cartSection) {
+      spinner.style.display = show ? "block" : "none";
+      productsSection.style.display = show ? "none" : "block";
+      cartSection.style.display = show ? "none" : "block";
+    } else {
+      console.error('Éléments DOM manquants pour showLoading');
+    }
+  }
+
+  function showError(section, message) {
+    const errorDivId = section === "products" ? "error-message" : "cart-error-message";
+    const errorDiv = document.getElementById(errorDivId);
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = message ? "block" : "none";
+    } else {
+      console.error(`Élément DOM manquant: ${errorDivId}`);
+    }
   }
 
   async function loadProducts() {
     showLoading(true);
+    showError("products", "");
     const container = document.getElementById('product-list');
-    container.innerHTML = ''; // Clear previous content
+    if (!container) {
+      console.error('Élément product-list manquant');
+      showLoading(false);
+      return;
+    }
+    container.innerHTML = '';
 
     try {
-      const response = await fetch('/api/products', {
+      console.log('Fetching products with token:', token.substring(0, 20) + '...');
+      const response = await fetch('http://localhost:9090/api/products', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      console.log('Response status:', response.status, 'OK:', response.ok);
       if (!response.ok) {
         if (response.status === 401) {
+          console.log('401 Unauthorized - Redirecting to login');
+          localStorage.removeItem('token');
+          window.location.href = '/login.html';
           throw new Error("Session expirée. Veuillez vous reconnecter.");
         }
-        throw new Error(`Erreur HTTP ${response.status}`);
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
       }
-      const products = await response.json();
+      let products;
+      try {
+        products = await response.json();
+      } catch (e) {
+        throw new Error("Erreur lors de l'analyse de la réponse JSON: " + e.message);
+      }
       console.log('Products fetched:', products);
 
+      if (!Array.isArray(products)) {
+        throw new Error("La réponse n'est pas un tableau de produits");
+      }
+
       if (products.length === 0) {
+        console.log('No products available');
         container.innerHTML = '<p class="text-center">Aucun produit disponible.</p>';
         showLoading(false);
         return;
       }
 
-      // Create document fragment for efficient DOM updates
       const fragment = document.createDocumentFragment();
       products.forEach(product => {
+        if (!product.id || !product.name || !product.price || !product.quantity) {
+          console.warn('Produit invalide:', product);
+          return;
+        }
         const imageUrl = product.imageUrl && product.imageUrl !== 'null' 
           ? product.imageUrl 
           : '/images/placeholder.jpg';
-        console.log(`Product: ${product.name}, Image URL: ${imageUrl}`);
+        console.log(`Rendering product: ${product.name}, Image URL: ${imageUrl}`);
         const card = document.createElement('div');
         card.className = 'col-md-4';
         card.innerHTML = `
@@ -154,7 +211,7 @@
                    onerror="this.src='/images/placeholder.jpg'">
             </div>
             <h5>${product.name}</h5>
-            <p>${product.description.substring(0, 100)}${product.description.length > 100 ? '...' : ''}</p>
+            <p>${product.description ? product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') : 'Sans description'}</p>
             <strong>${product.price} FBu</strong>
             <div class="mt-2">
               <input type="number" min="1" max="${product.quantity}" value="1" 
@@ -168,11 +225,13 @@
         fragment.appendChild(card);
       });
 
+      console.log('Appending products to container');
       container.appendChild(fragment);
     } catch (error) {
-      console.error('Erreur lors du chargement des produits :', error);
-      container.innerHTML = `<p class="text-center text-danger">Erreur: ${error.message}</p>`;
+      console.error('Erreur lors du chargement des produits:', error);
+      showError("products", `Erreur lors du chargement des produits: ${error.message}`);
     } finally {
+      console.log('Hiding loading spinner');
       showLoading(false);
     }
   }
@@ -182,7 +241,7 @@
     const quantity = parseInt(quantityInput.value);
     if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
       alert(`Veuillez entrer une quantité valide (1 à ${maxQuantity}).`);
-      quantityInput.value = 1; // Reset to default
+      quantityInput.value = 1;
       return;
     }
 
@@ -197,7 +256,7 @@
         return;
       }
     } else {
-      cart.push({ id, name, price, quantity });
+      cart.push({ id: parseInt(id), name, price: parseFloat(price), quantity });
     }
 
     localStorage.setItem('cart', JSON.stringify(cart));
@@ -206,8 +265,13 @@
   }
 
   function updateCartDisplay() {
+    showError("cart", "");
     const cart = JSON.parse(localStorage.getItem('cart')) || [];
     const tbody = document.getElementById('cart-items');
+    if (!tbody) {
+      console.error('Élément cart-items manquant');
+      return;
+    }
     tbody.innerHTML = '';
 
     let total = 0;
@@ -225,7 +289,12 @@
       tbody.appendChild(row);
     });
 
-    document.getElementById('cart-total').textContent = `${total.toFixed(2)} FBu`;
+    const cartTotal = document.getElementById('cart-total');
+    if (cartTotal) {
+      cartTotal.textContent = `${total.toFixed(2)} FBu`;
+    } else {
+      console.error('Élément cart-total manquant');
+    }
   }
 
   function removeFromCart(id) {
@@ -235,25 +304,69 @@
     updateCartDisplay();
   }
 
+  async function validateToken() {
+    try {
+      const response = await fetch('http://localhost:9090/api/products', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        console.log('Token invalide ou expiré lors de la validation');
+        return false;
+      }
+      return response.ok;
+    } catch (error) {
+      console.error('Erreur lors de la validation du token:', error);
+      return false;
+    }
+  }
+
   async function placeOrder() {
+    showError("cart", "");
     const cart = JSON.parse(localStorage.getItem('cart')) || [];
     if (cart.length === 0) {
-      alert("Votre panier est vide.");
+      showError("cart", "Votre panier est vide.");
+      return;
+    }
+
+    for (const item of cart) {
+      if (!Number.isInteger(item.id) || !Number.isInteger(item.quantity) || typeof item.price !== 'number') {
+        showError("cart", "Données du panier invalides. Veuillez réessayer.");
+        return;
+      }
+    }
+
+    // Valider le token
+    const isTokenValid = await validateToken();
+    if (!isTokenValid) {
+      console.error('Token invalide ou expiré. Redirection vers la page de connexion.');
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+      return;
+    }
+
+    const userId = getUserIdFromToken();
+    if (!userId) {
+      console.error('Échec de récupération de l\'ID utilisateur.');
+      showError("cart", "Erreur: ID utilisateur non trouvé. Veuillez vous reconnecter.");
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
       return;
     }
 
     const order = {
-      userId: getUserIdFromToken(),
+      userId: userId,
       items: cart.map(item => ({
-        productId: item.id,
+        productId: parseInt(item.id),
         quantity: item.quantity
       })),
-      total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      total: parseFloat(cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2))
     };
 
     showLoading(true);
     try {
-      const response = await fetch('/api/orders', {
+      console.log('Placing order:', JSON.stringify(order));
+      const response = await fetch('http://localhost:9090/api/orders', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -261,27 +374,59 @@
         },
         body: JSON.stringify(order)
       });
+      console.log('Order response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+        if (response.status === 401) {
+          console.error('401 Unauthorized - Redirecting to login');
+          localStorage.removeItem('token');
+          window.location.href = '/login.html';
+          throw new Error("Session expirée. Veuillez vous reconnecter.");
+        }
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}: Impossible de passer la commande`);
       }
+      const result = await response.json();
+      showError("cart", "");
       alert("Commande passée avec succès !");
       localStorage.removeItem('cart');
       updateCartDisplay();
     } catch (error) {
-      console.error('Erreur lors de la commande :', error);
-      alert(`Erreur lors de la commande : ${error.message}`);
+      console.error('Erreur lors de la commande:', error);
+      showError("cart", `Erreur lors de la commande: ${error.message}`);
     } finally {
+      console.log('Hiding loading spinner');
       showLoading(false);
     }
   }
 
   function getUserIdFromToken() {
     try {
+      // Vérifier le format du token
+      if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+        throw new Error("Format de token JWT invalide");
+      }
+
+      // Décoder le payload
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.sub; // Adjust based on your JWT structure
+      console.log('JWT Payload:', payload);
+
+      // Prioriser userId, puis id, user_id, sub
+      let userId = payload.userId || payload.id || payload.user_id || payload.sub;
+
+      // Vérifier si userId existe
+      if (!userId) {
+        throw new Error("Aucun champ d'ID utilisateur trouvé dans le payload (userId, id, user_id, sub)");
+      }
+
+      // Convertir en entier
+      userId = parseInt(userId);
+      if (isNaN(userId)) {
+        throw new Error("L'ID utilisateur n'est pas un nombre valide: " + payload.sub);
+      }
+
+      return userId;
     } catch (e) {
-      console.error('Erreur lors du décodage du token:', e);
+      console.error('Erreur lors du décodage du token:', e.message);
       return null;
     }
   }
@@ -289,10 +434,11 @@
   function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('cart');
-    window.location.href = '/login.html';
+    window.location.href = '/index.html';
   }
 
   window.onload = () => {
+    console.log('Page loaded, initializing user.html...');
     loadProducts();
     updateCartDisplay();
   };
