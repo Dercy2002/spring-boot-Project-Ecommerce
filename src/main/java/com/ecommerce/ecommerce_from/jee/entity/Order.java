@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -54,4 +55,8 @@ public class Order {
     public void setUser(User user) { this.user = user; }
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> items) { this.items = items; }
+
+    public void setOrderDate(LocalDateTime now) {
+        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
+    }
 }

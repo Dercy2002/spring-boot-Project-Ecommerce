@@ -3,66 +3,73 @@ package com.ecommerce.ecommerce_from.jee.controller;
 import com.ecommerce.ecommerce_from.jee.entity.User;
 import com.ecommerce.ecommerce_from.jee.security.UserDetailsImpl;
 import com.ecommerce.ecommerce_from.jee.service.UserService;
-import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/users")
+@RequiredArgsConstructor
+@Tag(name = "User API", description = "Opérations CRUD pour les utilisateurs")
 public class UserController {
 
     private final UserService userService;
 
-    @Autowired
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
-
-    // Récupérer l'utilisateur connecté
+    @Operation(summary = "Obtenir l'utilisateur connecté")
     @GetMapping("/me")
-    public ResponseEntity<User> getCurrentUser(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        User user = userService.getAllUsers().stream()
-                .filter(u -> u.getId().equals(userDetails.getId()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+    public ResponseEntity<User> getCurrentUser(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        User user = userService.getUserById(userDetails.getId());
         return ResponseEntity.ok(user);
     }
 
-    // Lister tous les utilisateurs (ADMIN uniquement)
+    @Operation(summary = "Créer un nouvel utilisateur")
+    @PostMapping
+    public ResponseEntity<User> createUser(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                description = "Les informations de l'utilisateur à créer"
+            )
+            @RequestBody User user
+    ) {
+        User createdUser = userService.createUser(user);
+        return ResponseEntity.ok(createdUser);
+    }
+
+    @Operation(summary = "Obtenir tous les utilisateurs")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    // Créer un utilisateur (ADMIN uniquement)
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> createUser(@RequestBody User user) {
-        if (userService.existsByUsername(user.getUsername())) {
-            throw new RuntimeException("Nom d'utilisateur déjà utilisé");
-        }
-        if (userService.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("Email déjà utilisé");
-        }
-        User savedUser = userService.saveUser(user);
-        return ResponseEntity.ok(savedUser);
+    @Operation(summary = "Obtenir un utilisateur par ID")
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        User user = userService.getUserById(id);
+        return ResponseEntity.ok(user);
     }
 
-    // Mettre à jour un utilisateur (ADMIN uniquement)
+    @Operation(summary = "Mettre à jour un utilisateur")
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user) {
-        User updatedUser = userService.updateUser(id, user);
-        return ResponseEntity.ok(updatedUser);
+    public ResponseEntity<User> updateUser(
+            @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                description = "Les nouvelles informations de l'utilisateur"
+            )
+            @RequestBody User updatedUser
+    ) {
+        User user = userService.updateUser(id, updatedUser);
+        return ResponseEntity.ok(user);
     }
 
-    // Supprimer un utilisateur (ADMIN uniquement)
+    @Operation(summary = "Supprimer un utilisateur")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();

@@ -1,78 +1,43 @@
 package com.ecommerce.ecommerce_from.jee.controller;
 
-import com.ecommerce.ecommerce_from.jee.entity.User;
-import com.ecommerce.ecommerce_from.jee.dto.AuthRequest;
+import com.ecommerce.ecommerce_from.jee.dto.LoginRequest;
 import com.ecommerce.ecommerce_from.jee.dto.RegisterRequest;
+import com.ecommerce.ecommerce_from.jee.entity.User;
 import com.ecommerce.ecommerce_from.jee.enums.Role;
-import com.ecommerce.ecommerce_from.jee.payload.AuthResponse;
-import com.ecommerce.ecommerce_from.jee.repository.UserRepository;
 import com.ecommerce.ecommerce_from.jee.security.JwtTokenProvider;
-import com.ecommerce.ecommerce_from.jee.security.UserDetailsImpl;
+import com.ecommerce.ecommerce_from.jee.service.UserService;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
-
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider tokenProvider;
-
-    @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody AuthRequest authRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        authRequest.getUsernameOrEmail(),
-                        authRequest.getPassword()
-                )
-        );
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = tokenProvider.generateToken(authentication);
-
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(role -> role.getAuthority())
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(new AuthResponse(
-                token,
-                userDetails.getUsername(),
-                userDetails.getEmail(),
-                roles
-        ));
-    }
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
-        if (userRepository.existsByUsername(registerRequest.getUsername())) {
+        if (userService.existsByUsername(registerRequest.getUsername())) {
             return ResponseEntity.badRequest().body("Error: Username is already taken!");
         }
 
-        if (userRepository.existsByEmail(registerRequest.getEmail())) {
+        if (userService.existsByEmail(registerRequest.getEmail())) {
             return ResponseEntity.badRequest().body("Error: Email is already in use!");
         }
 
-        User user = new User();
-        user.setUsername(registerRequest.getUsername());
-        user.setEmail(registerRequest.getEmail());
-        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
-
-        Role role = Role.USER; // par défaut
+        Role role = Role.USER;
         if (registerRequest.getRole() != null) {
             try {
                 role = Role.valueOf(registerRequest.getRole().toUpperCase());
@@ -81,12 +46,31 @@ public class AuthController {
             }
         }
 
+        User user = new User();
+        user.setUsername(registerRequest.getUsername());
+        user.setEmail(registerRequest.getEmail());
+        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
         user.setRole(role);
         user.setEnabled(true);
         user.setCreatedAt(LocalDateTime.now());
 
-        userRepository.save(user);
+        userService.saveUser(user);
 
         return ResponseEntity.ok("User registered successfully!");
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                loginRequest.getUsername(),
+                loginRequest.getPassword()
+            )
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String token = jwtTokenProvider.generateToken(authentication);
+
+        return ResponseEntity.ok("Bearer " + token);
     }
 }

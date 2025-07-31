@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/order-items")
+@RequestMapping("/order-items")
 public class OrderItemController {
 
     @Autowired

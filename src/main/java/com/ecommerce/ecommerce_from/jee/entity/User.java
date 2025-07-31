@@ -1,11 +1,9 @@
-// --- User.java (corrigé avec enum Role) ---
 package com.ecommerce.ecommerce_from.jee.entity;
 
 import com.ecommerce.ecommerce_from.jee.enums.Role;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import lombok.*; 
-
+import lombok.*;
 
 @Entity
 @Table(name = "users")
@@ -39,4 +37,6 @@ public class User {
     public void prePersist() {
         createdAt = LocalDateTime.now();
     }
+
+    // ✅ Supprimé tous les setters manuels avec "throw new UnsupportedOperationException"
 }

@@ -1,7 +1,10 @@
 package com.ecommerce.ecommerce_from.jee.service;
 
+import com.ecommerce.ecommerce_from.jee.dto.RegisterRequest;
 import com.ecommerce.ecommerce_from.jee.entity.User;
+import com.ecommerce.ecommerce_from.jee.enums.Role;
 import com.ecommerce.ecommerce_from.jee.repository.UserRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,56 +23,74 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Enregistrer un utilisateur (créer ou mettre à jour)
-    public User saveUser(User user) {
-        if (!user.getPassword().startsWith("$2a$")) {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
+    // 🔐 Enregistrement avec RegisterRequest
+    public User registerUser(RegisterRequest request) {
+        if (existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Le nom d'utilisateur est déjà utilisé");
         }
+
+        if (existsByEmail(request.getEmail())) {
+            throw new RuntimeException("L'email est déjà utilisé");
+        }
+
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.valueOf(request.getRole().toUpperCase())); // admin, user, etc.
+        user.setEnabled(true);
+        user.setCreatedAt(LocalDateTime.now());
+
         return userRepository.save(user);
     }
 
-    // Récupérer un utilisateur par username ou email
-    public Optional<User> getUserByUsername(String username) {
-        return userRepository.findByUsernameOrEmail(username, username);
+    // 🔄 Création directe d'un utilisateur (sans DTO)
+    public User createUser(User user) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setCreatedAt(LocalDateTime.now());
+        return userRepository.save(user);
     }
 
-    // Récupérer tous les utilisateurs
+    // 📜 Tous les utilisateurs
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
-    // Mettre à jour un utilisateur
-    public User updateUser(Long id, User updatedUser) {
-        User existingUser = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
-        
-        // Mettre à jour les champs
-        existingUser.setUsername(updatedUser.getUsername());
-        existingUser.setEmail(updatedUser.getEmail());
-        if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
-            existingUser.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
-        }
-        existingUser.setRole(updatedUser.getRole());
-        existingUser.setEnabled(updatedUser.isEnabled());
-
-        return userRepository.save(existingUser);
+    // 🔍 Un utilisateur par ID
+    public User getUserById(Long id) {
+        return userRepository.findById(id).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
     }
 
-    // Supprimer un utilisateur
+    // 🔁 Mise à jour utilisateur
+    public User updateUser(Long id, User updatedUser) {
+        User user = getUserById(id);
+        user.setUsername(updatedUser.getUsername());
+        user.setEmail(updatedUser.getEmail());
+        user.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+        user.setRole(updatedUser.getRole());
+        return userRepository.save(user);
+    }
+
+    // ❌ Suppression
     public void deleteUser(Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new RuntimeException("Utilisateur non trouvé");
-        }
         userRepository.deleteById(id);
     }
 
-    // Vérifier si un username existe
+    // 🔍 Recherches par username ou email
+    public Optional<User> findByUsername(String username) {
+        return (Optional<User>) userRepository.findByUsername(username);
+    }
+
     public boolean existsByUsername(String username) {
         return userRepository.existsByUsername(username);
     }
 
-    // Vérifier si un email existe
     public boolean existsByEmail(String email) {
-        return userRepository.existsByEmail(email);
+        String username = null;
+        return userRepository.existsByEmail(username);
+    }
+
+    public User saveUser(User user) {
+        return userRepository.save(user);
     }
 }

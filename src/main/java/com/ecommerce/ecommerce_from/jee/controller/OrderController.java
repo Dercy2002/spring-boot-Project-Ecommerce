@@ -1,5 +1,7 @@
 package com.ecommerce.ecommerce_from.jee.controller;
 
+import com.ecommerce.ecommerce_from.jee.dto.OrderRequest;
+import com.ecommerce.ecommerce_from.jee.dto.OrderRequest.OrderItemRequest;
 import com.ecommerce.ecommerce_from.jee.entity.Order;
 import com.ecommerce.ecommerce_from.jee.entity.Product;
 import com.ecommerce.ecommerce_from.jee.entity.User;
@@ -7,17 +9,18 @@ import com.ecommerce.ecommerce_from.jee.repository.OrderRepository;
 import com.ecommerce.ecommerce_from.jee.repository.ProductRepository;
 import com.ecommerce.ecommerce_from.jee.repository.UserRepository;
 import com.ecommerce.ecommerce_from.jee.service.OrderItemService;
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
+import com.ecommerce.ecommerce_from.jee.security.UserDetailsImpl;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Optional;
+
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/orders")
 public class OrderController {
 
     @Autowired
@@ -32,40 +35,58 @@ public class OrderController {
     @Autowired
     private OrderItemService orderItemService;
 
+    // Création de commande
     @PostMapping
-    public ResponseEntity<Order> createOrder(@RequestBody Map<String, Object> orderData,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.valueOf((Integer) orderData.get("userId"));
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé"));
-
-        if (!user.getUsername().equals(userDetails.getUsername())) {
-            throw new IllegalArgumentException("Utilisateur non autorisé");
+    public ResponseEntity<?> createOrder(@RequestBody OrderRequest request,
+                                         @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        if (userDetails == null || userDetails.getId() == null) {
+            return ResponseEntity.status(401).body("Utilisateur non authentifié");
         }
 
-        List<Map<String, Integer>> items = (List<Map<String, Integer>>) orderData.get("items");
-        BigDecimal total = new BigDecimal(orderData.get("total").toString());
+        User user = userRepository.findById(userDetails.getId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(404).body("Utilisateur introuvable");
+        }
 
         Order order = new Order();
         order.setUser(user);
-        order.setTotal(total);
+        order.setTotal(request.getTotal());
         order.setStatus("PENDING");
         order = orderRepository.save(order);
 
-        for (Map<String, Integer> item : items) {
-            Long productId = item.get("productId").longValue();
-            Integer quantity = item.get("quantity");
-            Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new IllegalArgumentException("Produit avec ID " + productId + " n'existe pas"));
-            orderItemService.addOrderItem(order, product, quantity);
+        for (OrderItemRequest item : request.getItems()) {
+            Product product = productRepository.findById(item.getProductId()).orElse(null);
+            if (product == null) {
+                return ResponseEntity.status(404).body("Produit avec ID " + item.getProductId() + " introuvable");
+            }
+            orderItemService.addOrderItem(order, product, item.getQuantity());
         }
 
         return ResponseEntity.ok(order);
     }
 
+    // Liste des commandes de l'utilisateur connecté
     @GetMapping
-    public ResponseEntity<List<Order>> getOrders(@AuthenticationPrincipal UserDetails userDetails) {
-        List<Order> orders = orderRepository.findAll();
+    public ResponseEntity<List<Order>> getOrders(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        List<Order> orders = orderRepository.findByUserId(userDetails.getId());
         return ResponseEntity.ok(orders);
+    }
+
+    // Suppression d'une commande par ID (seulement si elle appartient à l'utilisateur)
+    @DeleteMapping("/{orderId}")
+    public ResponseEntity<?> deleteOrder(@PathVariable Long orderId,
+                                         @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Optional<Order> orderOptional = orderRepository.findById(orderId);
+        if (orderOptional.isEmpty()) {
+            return ResponseEntity.status(404).body("Commande non trouvée");
+        }
+
+        Order order = orderOptional.get();
+        if (!order.getUser().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body("Vous n'êtes pas autorisé à supprimer cette commande");
+        }
+
+        orderRepository.delete(order);
+        return ResponseEntity.ok("Commande supprimée avec succès");
     }
 }
