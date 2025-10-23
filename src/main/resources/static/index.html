@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Accueil - OBAMA SHOP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      padding-top: 56px;
+      background-color: #f8f9fa;
+    }
+    .product-card {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .product-card:hover {
+      transform: translateY(-5px);
+    }
+    .product-image {
+      height: 200px;
+      width: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .image-container {
+      position: relative;
+      height: 200px;
+      background-color: #f0f0f0; /* Placeholder background */
+    }
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .error-message {
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="#">OBAMA SHOP</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbarNav" aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link active" href="#">Accueil</a></li>
+        <li class="nav-item"><a class="nav-link" href="#products">Produits</a></li>
+        <li class="nav-item"><a class="nav-link" href="#about">À propos</a></li>
+        <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+        <li class="nav-item"><a class="nav-link" href="login.html">Connexion</a></li>
+        <li class="nav-item"><a class="nav-link" href="register.html">Inscription</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Products Section -->
+<section id="products" class="container mt-5">
+  <h2 class="text-center mb-4">Produits Disponibles</h2>
+  <div id="product-list" class="row"></div>
+</section>
+
+<!-- About Section -->
+<section id="about" class="bg-light py-5">
+  <div class="container">
+    <h2 class="text-center mb-4">À propos</h2>
+    <p class="text-center">Bienvenue sur notre plateforme de commerce électronique. Ici, vous trouverez une large sélection de produits de qualité.</p>
+  </div>
+</section>
+
+<!-- Contact Section -->
+<section id="contact" class="py-5">
+  <div class="container">
+    <h2 class="text-center mb-4">Contact</h2>
+    <p class="text-center">Email : contact@ecommerce.com | Téléphone : +257 123 456 789</p>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-dark text-white text-center py-3">
+  <p>© 2025 E-Commerce. Tous droits réservés.</p>
+</footer>
+
+<div class="loading-spinner" id="loadingSpinner">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Chargement...</span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show ? "block" : "none";
+    document.getElementById("products").style.display = show ? "none" : "block";
+  }
+
+  async function loadProducts(usePagination = true, page = 0, size = 10) {
+    showLoading(true);
+    const container = document.getElementById('product-list');
+    container.innerHTML = ''; // Clear previous content
+
+    try {
+      // Try paginated endpoint first
+      let url = usePagination ? `/api/products?page=${page}&size=${size}` : '/api/products';
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Aucun détail disponible');
+        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      // Handle both paginated (Page) and non-paginated (List) responses
+      const products = Array.isArray(data) ? data : data.content || [];
+      console.log('Products fetched:', products);
+
+      if (products.length === 0) {
+        container.innerHTML = '<p class="text-center">Aucun produit disponible.</p>';
+        showLoading(false);
+        return;
+      }
+
+      // Create document fragment for efficient DOM updates
+      const fragment = document.createDocumentFragment();
+      products.forEach(product => {
+        const imageUrl = product.imageUrl && product.imageUrl !== 'null' 
+          ? product.imageUrl 
+          : '/images/placeholder.jpg';
+        console.log(`Product: ${product.name}, Image URL: ${imageUrl}`);
+        const card = document.createElement('div');
+        card.className = 'col-md-4';
+        card.innerHTML = `
+          <div class="product-card">
+            <div class="image-container">
+              <img src="${imageUrl}" alt="${product.name}" class="product-image img-fluid mb-2" 
+                   width="300" height="200" loading="lazy" 
+                   onerror="this.src='/images/placeholder.jpg'; console.error('Image failed to load: ${imageUrl}')">
+            </div>
+            <h5>${product.name}</h5>
+            <p>${product.description ? product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') : 'Sans description'}</p>
+            <strong>${product.price} FBu</strong>
+          </div>`;
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+
+      // Add pagination controls if paginated response
+      if (!Array.isArray(data) && data.totalPages > 1) {
+        const pagination = document.createElement('nav');
+        pagination.innerHTML = `
+          <ul class="pagination justify-content-center mt-3">
+            <li class="page-item ${page === 0 ? 'disabled' : ''}">
+              <a class="page-link" href="#" onclick="loadProducts(true, ${page - 1}, ${size})">Précédent</a>
+            </li>
+            <li class="page-item ${page >= data.totalPages - 1 ? 'disabled' : ''}">
+              <a class="page-link" href="#" onclick="loadProducts(true, ${page + 1}, ${size})">Suivant</a>
+            </li>
+          </ul>`;
+        container.appendChild(pagination);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits :', error);
+      // Fallback to non-paginated endpoint if pagination fails
+      if (usePagination && error.message.includes('Erreur HTTP')) {
+        console.log('Retrying without pagination...');
+        return loadProducts(false);
+      }
+      container.innerHTML = `<p class="text-center text-danger error-message">Erreur lors du chargement des produits : ${error.message}</p>`;
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // Prevent duplicate calls
+  let isLoading = false;
+  window.onload = () => {
+    if (!isLoading) {
+      isLoading = true;
+      loadProducts().finally(() => isLoading = false);
+    }
+  };
+</script>
+</body>
+</html>

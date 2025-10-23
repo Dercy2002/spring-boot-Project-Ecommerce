@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tableau de Bord Utilisateur - OBAMA SHOP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      padding-top: 56px;
+      background-color: #f8f9fa;
+    }
+    .product-card {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .product-card:hover {
+      transform: translateY(-5px);
+    }
+    .product-image {
+      height: 200px;
+      width: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .cart-table {
+      margin-top: 20px;
+    }
+    .loading-spinner {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .image-container {
+      position: relative;
+      height: 200px;
+      background-color: #f0f0f0;
+    }
+    .error-message {
+      color: red;
+      text-align: center;
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="#">OBAMA SHOP</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbarNav" aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link active" href="#">Accueil</a></li>
+        <li class="nav-item"><a class="nav-link" href="#products">Produits</a></li>
+        <li class="nav-item"><a class="nav-link" href="#cart">Panier</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="logout()">Déconnexion</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<section id="products" class="container mt-5">
+  <h2 class="text-center mb-4">Produits Disponibles</h2>
+  <div id="product-list" class="row"></div>
+  <div id="error-message" class="error-message"></div>
+</section>
+
+<section id="cart" class="container mt-5">
+  <h2 class="text-center mb-4">Votre Panier</h2>
+  <table class="table cart-table">
+    <thead>
+      <tr>
+        <th>Produit</th>
+        <th>Prix</th>
+        <th>Quantité</th>
+        <th>Total</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="cart-items"></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" class="text-end"><strong>Total:</strong></td>
+        <td id="cart-total">0 FBu</td>
+        <td><button class="btn btn-primary" onclick="placeOrder()">Passer la commande</button></td>
+      </tr>
+    </tfoot>
+  </table>
+  <div id="cart-error-message" class="error-message"></div>
+</section>
+
+<div class="loading-spinner" id="loadingSpinner">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Chargement...</span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location.href = "/login.html";
+  }
+
+  function showLoading(show) {
+    const spinner = document.getElementById("loadingSpinner");
+    const productsSection = document.getElementById("products");
+    const cartSection = document.getElementById("cart");
+    if (spinner && productsSection && cartSection) {
+      spinner.style.display = show ? "block" : "none";
+      productsSection.style.display = show ? "none" : "block";
+      cartSection.style.display = show ? "none" : "block";
+    } else {
+      console.error('Éléments DOM manquants pour showLoading');
+    }
+  }
+
+  function showError(section, message) {
+    const errorDivId = section === "products" ? "error-message" : "cart-error-message";
+    const errorDiv = document.getElementById(errorDivId);
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = message ? "block" : "none";
+    } else {
+      console.error(`Élément DOM manquant: ${errorDivId}`);
+    }
+  }
+
+  async function loadProducts() {
+    showLoading(true);
+    showError("products", "");
+    const container = document.getElementById('product-list');
+    if (!container) {
+      console.error('Élément product-list manquant');
+      showLoading(false);
+      return;
+    }
+    container.innerHTML = '';
+
+    try {
+      console.log('Fetching products with token:', token.substring(0, 20) + '...');
+      const response = await fetch('http://localhost:9090/api/products', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log('Response status:', response.status, 'OK:', response.ok);
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log('401 Unauthorized - Redirecting to login');
+          localStorage.removeItem('token');
+          window.location.href = '/login.html';
+          throw new Error("Session expirée. Veuillez vous reconnecter.");
+        }
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+      }
+      let products;
+      try {
+        products = await response.json();
+      } catch (e) {
+        throw new Error("Erreur lors de l'analyse de la réponse JSON: " + e.message);
+      }
+      console.log('Products fetched:', products);
+
+      if (!Array.isArray(products)) {
+        throw new Error("La réponse n'est pas un tableau de produits");
+      }
+
+      if (products.length === 0) {
+        console.log('No products available');
+        container.innerHTML = '<p class="text-center">Aucun produit disponible.</p>';
+        showLoading(false);
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      products.forEach(product => {
+        if (!product.id || !product.name || !product.price || !product.quantity) {
+          console.warn('Produit invalide:', product);
+          return;
+        }
+        const imageUrl = product.imageUrl && product.imageUrl !== 'null' 
+          ? product.imageUrl 
+          : '/images/placeholder.jpg';
+        console.log(`Rendering product: ${product.name}, Image URL: ${imageUrl}`);
+        const card = document.createElement('div');
+        card.className = 'col-md-4';
+        card.innerHTML = `
+          <div class="product-card">
+            <div class="image-container">
+              <img src="${imageUrl}" alt="${product.name}" class="product-image img-fluid mb-2" 
+                   width="300" height="200" loading="lazy" 
+                   onerror="this.src='/images/placeholder.jpg'">
+            </div>
+            <h5>${product.name}</h5>
+            <p>${product.description ? product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') : 'Sans description'}</p>
+            <strong>${product.price} FBu</strong>
+            <div class="mt-2">
+              <input type="number" min="1" max="${product.quantity}" value="1" 
+                     id="qty-${product.id}" class="form-control d-inline-block w-25">
+              <button class="btn btn-success btn-sm" 
+                      onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${product.quantity})">
+                Ajouter au panier
+              </button>
+            </div>
+          </div>`;
+        fragment.appendChild(card);
+      });
+
+      console.log('Appending products to container');
+      container.appendChild(fragment);
+    } catch (error) {
+      console.error('Erreur lors du chargement des produits:', error);
+      showError("products", `Erreur lors du chargement des produits: ${error.message}`);
+    } finally {
+      console.log('Hiding loading spinner');
+      showLoading(false);
+    }
+  }
+
+  function addToCart(id, name, price, maxQuantity) {
+    const quantityInput = document.getElementById(`qty-${id}`);
+    const quantity = parseInt(quantityInput.value);
+    if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
+      alert(`Veuillez entrer une quantité valide (1 à ${maxQuantity}).`);
+      quantityInput.value = 1;
+      return;
+    }
+
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+    const existingItem = cart.find(item => item.id === id);
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      if (existingItem.quantity > maxQuantity) {
+        alert(`La quantité totale dépasse le stock disponible (${maxQuantity}).`);
+        existingItem.quantity -= quantity;
+        return;
+      }
+    } else {
+      cart.push({ id: parseInt(id), name, price: parseFloat(price), quantity });
+    }
+
+    localStorage.setItem('cart', JSON.stringify(cart));
+    alert(`${name} ajouté au panier !`);
+    updateCartDisplay();
+  }
+
+  function updateCartDisplay() {
+    showError("cart", "");
+    const cart = JSON.parse(localStorage.getItem('cart')) || [];
+    const tbody = document.getElementById('cart-items');
+    if (!tbody) {
+      console.error('Élément cart-items manquant');
+      return;
+    }
+    tbody.innerHTML = '';
+
+    let total = 0;
+    cart.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      total += itemTotal;
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${item.name}</td>
+        <td>${item.price} FBu</td>
+        <td>${item.quantity}</td>
+        <td>${itemTotal.toFixed(2)} FBu</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeFromCart(${item.id})">Supprimer</button></td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    const cartTotal = document.getElementById('cart-total');
+    if (cartTotal) {
+      cartTotal.textContent = `${total.toFixed(2)} FBu`;
+    } else {
+      console.error('Élément cart-total manquant');
+    }
+  }
+
+  function removeFromCart(id) {
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+    cart = cart.filter(item => item.id !== id);
+    localStorage.setItem('cart', JSON.stringify(cart));
+    updateCartDisplay();
+  }
+
+  async function validateToken() {
+    try {
+      const response = await fetch('http://localhost:9090/api/products', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        console.log('Token invalide ou expiré lors de la validation');
+        return false;
+      }
+      return response.ok;
+    } catch (error) {
+      console.error('Erreur lors de la validation du token:', error);
+      return false;
+    }
+  }
+
+  async function placeOrder() {
+    showError("cart", "");
+    const cart = JSON.parse(localStorage.getItem('cart')) || [];
+    if (cart.length === 0) {
+      showError("cart", "Votre panier est vide.");
+      return;
+    }
+
+    for (const item of cart) {
+      if (!Number.isInteger(item.id) || !Number.isInteger(item.quantity) || typeof item.price !== 'number') {
+        showError("cart", "Données du panier invalides. Veuillez réessayer.");
+        return;
+      }
+    }
+
+    // Valider le token
+    const isTokenValid = await validateToken();
+    if (!isTokenValid) {
+      console.error('Token invalide ou expiré. Redirection vers la page de connexion.');
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+      return;
+    }
+
+    const userId = getUserIdFromToken();
+    if (!userId) {
+      console.error('Échec de récupération de l\'ID utilisateur.');
+      showError("cart", "Erreur: ID utilisateur non trouvé. Veuillez vous reconnecter.");
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+      return;
+    }
+
+    const order = {
+      userId: userId,
+      items: cart.map(item => ({
+        productId: parseInt(item.id),
+        quantity: item.quantity
+      })),
+      total: parseFloat(cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2))
+    };
+
+    showLoading(true);
+    try {
+      console.log('Placing order:', JSON.stringify(order));
+      const response = await fetch('http://localhost:9090/api/orders', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(order)
+      });
+      console.log('Order response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          console.error('401 Unauthorized - Redirecting to login');
+          localStorage.removeItem('token');
+          window.location.href = '/login.html';
+          throw new Error("Session expirée. Veuillez vous reconnecter.");
+        }
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}: Impossible de passer la commande`);
+      }
+      const result = await response.json();
+      showError("cart", "");
+      alert("Commande passée avec succès !");
+      localStorage.removeItem('cart');
+      updateCartDisplay();
+    } catch (error) {
+      console.error('Erreur lors de la commande:', error);
+      showError("cart", `Erreur lors de la commande: ${error.message}`);
+    } finally {
+      console.log('Hiding loading spinner');
+      showLoading(false);
+    }
+  }
+
+  function getUserIdFromToken() {
+    try {
+      // Vérifier le format du token
+      if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+        throw new Error("Format de token JWT invalide");
+      }
+
+      // Décoder le payload
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('JWT Payload:', payload);
+
+      // Prioriser userId, puis id, user_id, sub
+      let userId = payload.userId || payload.id || payload.user_id || payload.sub;
+
+      // Vérifier si userId existe
+      if (!userId) {
+        throw new Error("Aucun champ d'ID utilisateur trouvé dans le payload (userId, id, user_id, sub)");
+      }
+
+      // Convertir en entier
+      userId = parseInt(userId);
+      if (isNaN(userId)) {
+        throw new Error("L'ID utilisateur n'est pas un nombre valide: " + payload.sub);
+      }
+
+      return userId;
+    } catch (e) {
+      console.error('Erreur lors du décodage du token:', e.message);
+      return null;
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('cart');
+    window.location.href = '/index.html';
+  }
+
+  window.onload = () => {
+    console.log('Page loaded, initializing user.html...');
+    loadProducts();
+    updateCartDisplay();
+  };
+</script>
+</body>
+</html>
